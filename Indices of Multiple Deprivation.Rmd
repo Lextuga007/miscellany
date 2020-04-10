@@ -1,0 +1,166 @@
+---
+title: "Indices of Multiple Deprivation"
+author: "Zoë Turner"
+date: "10/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, results = 'asis')
+```
+
+# Indices of Multiple Deprivation (2015)
+
+IMD is very useful for categorising the area a person lives in for deprivation. This information/links and code only cover England and deprivation is scored in relation to all the areas within England using the IMD (2015). This means that they have been ordered by the deprivation score and then ranked (IMDRank).
+
+* The common decile used is between 1 and 10 with 10 being the least deprived.
+
+# Data warehouses
+
+The data is often held in 3 tables:
+
+* the postcodes of the data held (for example patients when in the healthcare sector)
+* a lookup postcode table (like a directory of postcodes) from 
+
+https://digital.nhs.uk/services/organisation-data-service/data-downloads/ods-postcode-files 
+
+* the IMD data from 
+
+http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 
+
+Scroll half way down for the dataset.
+
+Other data is available from this dataset including IDAOPI which relates to only older people. 
+
+
+## Watch for...
+
+### 'Unknown' in the data warehouse
+
+Data warehouse tables may include a row for 'unknown' (https://www.sqlchick.com/entries/2011/5/16/usage-of-unknown-member-rows-in-a-data-warehouse.html) and this may create a valid join across tables: unknown is entered as a postcode that links to the postcode table that in turn returns data from the IMD table. This may result in a value being returned from the IMD table that isn't valid like 0 which looks like it should be an IMD decile score, for example, but which is not.
+ 
+### Postcode spaces 
+ 
+Also, postcode lengths vary according to how many spaces there are between the two parts. In the UK the postcode format can be 3 parts and then 3 or 4 then 3:
+
+NG1 1AA
+NG26 1AA
+
+Joining datasets is always better when the space between the postcode parts is removed. In SQL this can be:
+
+REPLACE(postcode, ' ', '')
+
+in R it can be 
+
+
+```{r Postcode White Space, echo=TRUE}
+
+postcode <- "NG16 1AA"
+
+gsub(" ","",postcode)
+
+```
+
+
+### Partial postcodes
+
+Partial postcodes will not give a sufficiently reliable IMD score.
+
+
+# Example join code (SQL)
+
+To get the IMD score the LSOA (Lower Super Output Area) code is required which is taken from the full postcode.
+
+This code will not run and is dependent on the naming conventions of the SQL server. The column names of LSOA11 and LSOAcode2011 will have come from the data sources. PostCode_space will have been added to the table by the data warehouse administrator(s).
+
+```{r SQL Example code, eval=FALSE}
+
+SELECT Top 100 imd.*
+FROM DIM_AI.PatientData AS p
+LEFT JOIN DIM_AI.PostCodes AS pc ON p.PostCode = pc.PostCode_space												
+LEFT JOIN DIM_AI.IMD AS i ON pc.PC.LSOA11 = i.LSOAcode2011
+WHERE p.PostCode LIKE 'NG%'
+
+```
+
+# Creating quintiles
+
+Some publicly available data is in quintiles for IMD to remove small identifiable numbers. 
+
+To replicate that in local data the equation: floor((IMDDecile-1)/2) + 1 can be applied.
+
+### Quintiles in SQL
+
+```{r Quintile SQL code, eval=FALSE}
+
+SELECT DISTINCT IMDDecile,
+FLOOR((IMDDecile-1)/2) + 1 AS IMDQuintile
+FROM DIM_AI.IMD
+ORDER BY IMDDecile
+
+```
+
+### Quintiles in R
+
+The following example Pubicly available data will not run download if this Rmarkdown script is run as the eval has been set to FALSE. Either change this to TRUE, remove eval=FALSE altogether or copy the code to another R script to run.
+
+```{r ONS quintile example, eval=FALSE}
+
+# IMD by Ethnicity by Region 2007-2013
+# Latest: https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/adhocs/006134birthsbyethnicitysexregionandimdquintilebyfinancialyear2007to2013
+
+download.file("https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/adhocs/006134birthsbyethnicitysexregionandimdquintilebyfinancialyear2007to2013",
+              destfile = "regionbirthsbyethnicityIMD20072013.xls",
+              method = "wininet", #use "curl" for OS X / Linux, "wininet" for Windows
+              mode = "wb") #wb means "write binary"
+
+```
+
+Applying the formula:
+
+```{r quintile}
+
+library(tidyverse)
+
+# Generate a dataset
+df <- structure(list(IMDDecile = c(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 
+8L, 9L, 10L, NA)), row.names = c(NA, -12L), class = c("tbl_df", 
+"tbl", "data.frame"))
+
+# Make the 0 generated into NA
+df_quintile <- df %>% 
+  replace_na(list(IMDDecile = 0)) %>% 
+  mutate(IMDQuintile = floor((IMDDecile-1)/2) + 1,
+         IMDQuintile = as.character(IMDQuintile)
+         )
+
+```
+
+# Other useful links
+
+https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/464430/English_Index_of_Multiple_Deprivation_2015_-_Guidance.pdf 
+
+https://fingertips.phe.org.uk/search/imd
+
+http://dclgapps.communities.gov.uk/imd/idmap.html 
+
+
+# Referencing IMD in a paper or research
+ 
+From a journal check to see how IMD is referenced in published papers, this was from a 2016 BMJ article that cites the Indices in the references as:
+
+6. Department for Communities and Local Government. English indices of deprivation 2015. 2015. https://www.gov.uk/government/statistics/ english-indices-of-deprivation-2015
+
+(Taken from https://bmjopen.bmj.com/content/bmjopen/6/11/e012750.full.pdf)
+
+Another paper from 2016 cites as:
+
+16. Department for Communities and Local Government. English Indices of Deprivation 2015. Available online: http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 (accessed on 27 April 2016).
+
+(taken from https://www.mdpi.com/1660-4601/13/8/750)
+
+Looking at the Government page that lists the full text the library assistant said: "I would reference it from the Ministry of Housing, Communities and Local Government which would be more up to date for 2019 and with online references you should always put the date you accessed it. So I would suggest amending to the following:"
+
+Ministry of Housing, Communities and Local Government. English Indices of Deprivation 2015. 2015. https://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 (Accessed 4 June 2019)
+
+ 
