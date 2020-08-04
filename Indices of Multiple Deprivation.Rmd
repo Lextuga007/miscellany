@@ -1,7 +1,7 @@
 ---
 title: "Indices of Multiple Deprivation"
 author: "Zoë Turner"
-date: "10/04/2020"
+date: "04/08/2020"
 output: html_document
 ---
 
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, results = '
 
 # Indices of Multiple Deprivation (2015)
 
-IMD is very useful for categorising the area a person lives in for deprivation. This information/links and code only cover England and deprivation is scored in relation to all the areas within England using the IMD (2015). This means that they have been ordered by the deprivation score and then ranked (IMDRank).
+IMD is very useful for categorising the area a person lives in for deprivation. This information/links and code only cover England and deprivation is scored in relation to all the areas within England using the IMD (2019). This means that they have been ordered by the deprivation score and then ranked (IMDRank).
 
 * The common decile used is between 1 and 10 with 10 being the least deprived.
 
@@ -26,12 +26,14 @@ https://digital.nhs.uk/services/organisation-data-service/data-downloads/ods-pos
 
 * the IMD data from 
 
-http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 
+Older version: http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 
+https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019 
 
-Scroll half way down for the dataset.
+Select File 7 for the dataset.
 
 Other data is available from this dataset including IDAOPI which relates to only older people. 
 
+Note that the column headers change, in 2015 it was LADistrictCode2013 and in 2019 it is LADistrictCode2019. Also LADistrictName2013 has become LADistrictName2019.
 
 ## Watch for...
 
@@ -136,6 +138,36 @@ df_quintile <- df %>%
 
 ```
 
+# Creating local IMDs
+
+It may be appropriate to rank the IMD areas locally rather than use those ranked across England. For example, in Nottingham the differences between the LSOA areas is diminished when ranked against England as a whole, but when ranked within Nottingham and Nottinghamshire, the variation is much more pronounced.
+
+To do this in SQL the data needs to be restricted to the appropriate area, for example when joining to the Postcodes and restricting and then a windows partition applied to the data ROW_NUMBER() OVER(ORDER BY IMDRank) to create a new ranking score and NTILE(10) OVER (ORDER BY IMDRank) to create new deciles.
+
+To replicate this in dplyr the code would be:
+
+```{r localRank}
+
+ # Data for Nottingham and Nottinghamshire taken from Postcodes and IMD. The original files are very large to download. Note that there are columns in the Postcode data sample that don't exist in the source file. These have been added locally but may be of use to others, such as CountyName and LocalAuthority_Name. These are specifically added as Nottingham Local Authority is a Unitary Authority and appears in a different column to Nottinghamshire County's District Councils 
+
+load("data/sampleDataNottingham.RData")
+
+library(dplyr)
+
+# Note on the join the two column names are different so are listed in the by = and they need to be in the correct order so the column from imdNottingham appears first.
+
+localRanking <- imdData%>% 
+  inner_join(postcodeData %>% 
+               select(LSOA11) %>% 
+               group_by(LSOA11) %>% 
+               slice(1), by = c("LSOAcode2011" = "LSOA11")) %>% 
+  mutate(Notts_rank = row_number(IMDRank),
+         Notts_decile = ntile(IMDRank, 10)) 
+
+```
+
+# 
+
 # Other useful links
 
 https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/464430/English_Index_of_Multiple_Deprivation_2015_-_Guidance.pdf 
@@ -143,6 +175,8 @@ https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attac
 https://fingertips.phe.org.uk/search/imd
 
 http://dclgapps.communities.gov.uk/imd/idmap.html 
+
+Technical report for 2019: https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/833951/IoD2019_Technical_Report.pdf 
 
 
 # Referencing IMD in a paper or research
