@@ -1,8 +1,6 @@
 ---
 title: "Indices of Multiple Deprivation"
-author: "Zoë Turner"
-date: "04/08/2020"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
