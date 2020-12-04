@@ -1,5 +1,3 @@
-Indices of Multiple Deprivation
-================
 
 # Indices of Multiple Deprivation (2015)
 

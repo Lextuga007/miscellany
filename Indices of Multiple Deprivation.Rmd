@@ -1,5 +1,4 @@
 ---
-title: "Indices of Multiple Deprivation"
 output: github_document
 ---
 
