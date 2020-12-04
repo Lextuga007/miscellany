@@ -159,7 +159,9 @@ IMDRank) to create new deciles.
 To replicate this in dplyr the code would be:
 
 ``` r
- # Data for Nottingham and Nottinghamshire taken from Postcodes and IMD. The original files are very large to download. Note that there are columns in the Postcode data sample that don't exist in the source file. These have been added locally but may be of use to others, such as CountyName and LocalAuthority_Name. These are specifically added as Nottingham Local Authority is a Unitary Authority and appears in a different column to Nottinghamshire County's District Councils 
+ # Data for Nottingham and Nottinghamshire taken from Postcodes and IMD. The original files are very large to download. 
+# Note that there are columns in the Postcode data sample that don't exist in the source file. 
+# These have been added locally but may be of use to others, such as CountyName and LocalAuthority_Name. # These are specifically added as Nottingham Local Authority is a Unitary Authority and appears in a different column to Nottinghamshire County's District Councils 
 
 load("data/sampleDataNottingham.RData")
 
@@ -167,16 +169,307 @@ library(dplyr)
 
 # Note on the join the two column names are different so are listed in the by = and they need to be in the correct order so the column from imdNottingham appears first.
 
-localRanking <- imdData%>% 
+localRanking <- imdNottingham %>% 
   inner_join(postcodeData %>% 
                select(LSOA11) %>% 
                group_by(LSOA11) %>% 
                slice(1), by = c("LSOAcode2011" = "LSOA11")) %>% 
   mutate(Notts_rank = row_number(IMDRank),
          Notts_decile = ntile(IMDRank, 10)) 
+
+localRanking %>% 
+  select(LSOAcode2011:IMDDecile) %>% 
+  head(5) %>% 
+  knitr::kable(format = "html")
 ```
 
-# 
+<table>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+LSOAcode2011
+
+</th>
+
+<th style="text-align:left;">
+
+LSOAname2011
+
+</th>
+
+<th style="text-align:left;">
+
+LADistrictCode2019
+
+</th>
+
+<th style="text-align:left;">
+
+LADistrictName2019
+
+</th>
+
+<th style="text-align:right;">
+
+IMDScore
+
+</th>
+
+<th style="text-align:right;">
+
+IMDRank
+
+</th>
+
+<th style="text-align:right;">
+
+IMDDecile
+
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013812
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018C
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+58.744
+
+</td>
+
+<td style="text-align:right;">
+
+1042
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013814
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 022B
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+42.893
+
+</td>
+
+<td style="text-align:right;">
+
+3499
+
+</td>
+
+<td style="text-align:right;">
+
+2
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013810
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018A
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+52.690
+
+</td>
+
+<td style="text-align:right;">
+
+1767
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013811
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018B
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+53.234
+
+</td>
+
+<td style="text-align:right;">
+
+1688
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013815
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 022C
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+41.721
+
+</td>
+
+<td style="text-align:right;">
+
+3805
+
+</td>
+
+<td style="text-align:right;">
+
+2
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
 
 # Other useful links
 
