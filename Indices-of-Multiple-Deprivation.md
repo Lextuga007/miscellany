@@ -1,0 +1,516 @@
+
+# Indices of Multiple Deprivation (2015)
+
+IMD is very useful for categorising the area a person lives in for
+deprivation. This information/links and code only cover England and
+deprivation is scored in relation to all the areas within England using
+the IMD (2019). This means that they have been ordered by the
+deprivation score and then ranked (IMDRank).
+
+  - The common decile used is between 1 and 10 with 10 being the least
+    deprived.
+
+# Data warehouses
+
+The data is often held in 3 tables:
+
+  - the postcodes of the data held (for example patients when in the
+    healthcare sector)
+  - a lookup postcode table (like a directory of postcodes) from
+
+<https://digital.nhs.uk/services/organisation-data-service/data-downloads/ods-postcode-files>
+
+  - the IMD data from
+
+Older version:
+<http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015>
+<https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019>
+
+Select File 7 for the dataset.
+
+Other data is available from this dataset including IDAOPI which relates
+to only older people.
+
+Note that the column headers change, in 2015 it was LADistrictCode2013
+and in 2019 it is LADistrictCode2019. Also LADistrictName2013 has become
+LADistrictName2019.
+
+## Watch for…
+
+### ‘Unknown’ in the data warehouse
+
+Data warehouse tables may include a row for ‘unknown’
+(<https://www.sqlchick.com/entries/2011/5/16/usage-of-unknown-member-rows-in-a-data-warehouse.html>)
+and this may create a valid join across tables: unknown is entered as a
+postcode that links to the postcode table that in turn returns data from
+the IMD table. This may result in a value being returned from the IMD
+table that isn’t valid like 0 which looks like it should be an IMD
+decile score, for example, but which is not.
+
+### Postcode spaces
+
+Also, postcode lengths vary according to how many spaces there are
+between the two parts. In the UK the postcode format can be 3 parts and
+then 3 or 4 then 3:
+
+NG1 1AA NG26 1AA
+
+Joining datasets is always better when the space between the postcode
+parts is removed. In SQL this can be:
+
+REPLACE(postcode, ’ ‘,’’)
+
+in R it can be
+
+``` r
+postcode <- "NG16 1AA"
+
+gsub(" ","",postcode)
+```
+
+### Partial postcodes
+
+Partial postcodes will not give a sufficiently reliable IMD score.
+
+# Example join code (SQL)
+
+To get the IMD score the LSOA (Lower Super Output Area) code is required
+which is taken from the full postcode.
+
+This code will not run and is dependent on the naming conventions of the
+SQL server. The column names of LSOA11 and LSOAcode2011 will have come
+from the data sources. PostCode\_space will have been added to the table
+by the data warehouse administrator(s).
+
+``` r
+SELECT Top 100 imd.*
+FROM DIM_AI.PatientData AS p
+LEFT JOIN DIM_AI.PostCodes AS pc ON p.PostCode = pc.PostCode_space                                              
+LEFT JOIN DIM_AI.IMD AS i ON pc.PC.LSOA11 = i.LSOAcode2011
+WHERE p.PostCode LIKE 'NG%'
+```
+
+# Creating quintiles
+
+Some publicly available data is in quintiles for IMD to remove small
+identifiable numbers.
+
+To replicate that in local data the equation: floor((IMDDecile-1)/2) + 1
+can be applied.
+
+### Quintiles in SQL
+
+``` r
+SELECT DISTINCT IMDDecile,
+FLOOR((IMDDecile-1)/2) + 1 AS IMDQuintile
+FROM DIM_AI.IMD
+ORDER BY IMDDecile
+```
+
+### Quintiles in R
+
+The following example Pubicly available data will not run download if
+this Rmarkdown script is run as the eval has been set to FALSE. Either
+change this to TRUE, remove eval=FALSE altogether or copy the code to
+another R script to run.
+
+``` r
+# IMD by Ethnicity by Region 2007-2013
+# Latest: https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/adhocs/006134birthsbyethnicitysexregionandimdquintilebyfinancialyear2007to2013
+
+download.file("https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/livebirths/adhocs/006134birthsbyethnicitysexregionandimdquintilebyfinancialyear2007to2013",
+              destfile = "regionbirthsbyethnicityIMD20072013.xls",
+              method = "wininet", #use "curl" for OS X / Linux, "wininet" for Windows
+              mode = "wb") #wb means "write binary"
+```
+
+Applying the formula:
+
+``` r
+library(tidyverse)
+
+# Generate a dataset
+df <- structure(list(IMDDecile = c(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 
+8L, 9L, 10L, NA)), row.names = c(NA, -12L), class = c("tbl_df", 
+"tbl", "data.frame"))
+
+# Make the 0 generated into NA
+df_quintile <- df %>% 
+  replace_na(list(IMDDecile = 0)) %>% 
+  mutate(IMDQuintile = floor((IMDDecile-1)/2) + 1,
+         IMDQuintile = as.character(IMDQuintile)
+         )
+```
+
+# Creating local IMDs
+
+It may be appropriate to rank the IMD areas locally rather than use
+those ranked across England. For example, in Nottingham the differences
+between the LSOA areas is diminished when ranked against England as a
+whole, but when ranked within Nottingham and Nottinghamshire, the
+variation is much more pronounced.
+
+To do this in SQL the data needs to be restricted to the appropriate
+area, for example when joining to the Postcodes and restricting and then
+a windows partition applied to the data ROW\_NUMBER() OVER(ORDER BY
+IMDRank) to create a new ranking score and NTILE(10) OVER (ORDER BY
+IMDRank) to create new deciles.
+
+To replicate this in dplyr the code would be:
+
+``` r
+ # Data for Nottingham and Nottinghamshire taken from Postcodes and IMD. The original files are very large to download. 
+# Note that there are columns in the Postcode data sample that don't exist in the source file. 
+# These have been added locally but may be of use to others, such as CountyName and LocalAuthority_Name. # These are specifically added as Nottingham Local Authority is a Unitary Authority and appears in a different column to Nottinghamshire County's District Councils 
+
+load("data/sampleDataNottingham.RData")
+
+library(dplyr)
+
+# Note on the join the two column names are different so are listed in the by = and they need to be in the correct order so the column from imdNottingham appears first.
+
+localRanking <- imdNottingham %>% 
+  inner_join(postcodeData %>% 
+               select(LSOA11) %>% 
+               group_by(LSOA11) %>% 
+               slice(1), by = c("LSOAcode2011" = "LSOA11")) %>% 
+  mutate(Notts_rank = row_number(IMDRank),
+         Notts_decile = ntile(IMDRank, 10)) 
+
+localRanking %>% 
+  select(LSOAcode2011:IMDDecile) %>% 
+  head(5) %>% 
+  knitr::kable(format = "html")
+```
+
+<table>
+
+<thead>
+
+<tr>
+
+<th style="text-align:left;">
+
+LSOAcode2011
+
+</th>
+
+<th style="text-align:left;">
+
+LSOAname2011
+
+</th>
+
+<th style="text-align:left;">
+
+LADistrictCode2019
+
+</th>
+
+<th style="text-align:left;">
+
+LADistrictName2019
+
+</th>
+
+<th style="text-align:right;">
+
+IMDScore
+
+</th>
+
+<th style="text-align:right;">
+
+IMDRank
+
+</th>
+
+<th style="text-align:right;">
+
+IMDDecile
+
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013812
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018C
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+58.744
+
+</td>
+
+<td style="text-align:right;">
+
+1042
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013814
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 022B
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+42.893
+
+</td>
+
+<td style="text-align:right;">
+
+3499
+
+</td>
+
+<td style="text-align:right;">
+
+2
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013810
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018A
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+52.690
+
+</td>
+
+<td style="text-align:right;">
+
+1767
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013811
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 018B
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+53.234
+
+</td>
+
+<td style="text-align:right;">
+
+1688
+
+</td>
+
+<td style="text-align:right;">
+
+1
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:left;">
+
+E01013815
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham 022C
+
+</td>
+
+<td style="text-align:left;">
+
+E06000018
+
+</td>
+
+<td style="text-align:left;">
+
+Nottingham
+
+</td>
+
+<td style="text-align:right;">
+
+41.721
+
+</td>
+
+<td style="text-align:right;">
+
+3805
+
+</td>
+
+<td style="text-align:right;">
+
+2
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+# Other useful links
+
+<https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/464430/English_Index_of_Multiple_Deprivation_2015_-_Guidance.pdf>
+
+<https://fingertips.phe.org.uk/search/imd>
+
+<http://dclgapps.communities.gov.uk/imd/idmap.html>
+
+Technical report for 2019:
+<https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/833951/IoD2019_Technical_Report.pdf>
+
+# Referencing IMD in a paper or research
+
+From a journal check to see how IMD is referenced in published papers,
+this was from a 2016 BMJ article that cites the Indices in the
+references as:
+
+6.  Department for Communities and Local Government. English indices of
+    deprivation 2015. 2015. <https://www.gov.uk/government/statistics/>
+    english-indices-of-deprivation-2015
+
+(Taken from
+<https://bmjopen.bmj.com/content/bmjopen/6/11/e012750.full.pdf>)
+
+Another paper from 2016 cites as:
+
+16. Department for Communities and Local Government. English Indices of
+    Deprivation 2015. Available online:
+    <http://www.gov.uk/government/statistics/english-indices-of-deprivation-2015>
+    (accessed on 27 April 2016).
+
+(taken from <https://www.mdpi.com/1660-4601/13/8/750>)
+
+Looking at the Government page that lists the full text the library
+assistant said: “I would reference it from the Ministry of Housing,
+Communities and Local Government which would be more up to date for 2019
+and with online references you should always put the date you accessed
+it. So I would suggest amending to the following:”
+
+Ministry of Housing, Communities and Local Government. English Indices
+of Deprivation 2015. 2015.
+<https://www.gov.uk/government/statistics/english-indices-of-deprivation-2015>
+(Accessed 4 June 2019)
