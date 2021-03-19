@@ -144,17 +144,25 @@ df_quintile <- df %>%
 
 # Creating local IMDs
 
-It may be appropriate to rank the IMD areas locally rather than use
-those ranked across England. For example, in Nottingham the differences
-between the LSOA areas is diminished when ranked against England as a
-whole, but when ranked within Nottingham and Nottinghamshire, the
-variation is much more pronounced.
+In Nottingham/Nottinghamshire the differences between the LSOA areas is
+diminished when ranked against England as a whole, but when ranked
+locally, the variation is much more pronounced. Consequently, for the
+majority of our analysis the Trust approach is to use Nottinghamshire
+quintiles of deprivation / IMD. There will be some instances where
+national quintiles (or deciles) will be required – namely any external
+analysis – however, these will be the exception.
 
-To do this in SQL the data needs to be restricted to the appropriate
-area, for example when joining to the Postcodes and restricting and then
-a windows partition applied to the data ROW\_NUMBER() OVER(ORDER BY
-IMDRank) to create a new ranking score and NTILE(10) OVER (ORDER BY
-IMDRank) to create new deciles.
+For note, when using local quintiles anyone with a non-local postcode
+will come back unmatched as well as those people with proxy postcodes
+used often to denote homeless status (ZZ…).
+
+## IMD in SQL
+
+To create the local rankings in SQL the data needs to be restricted to
+the appropriate area, for example when joining to the Postcodes and
+restricting and then a windows partition applied to the data
+ROW\_NUMBER() OVER(ORDER BY IMDRank) to create a new ranking score and
+NTILE(10) OVER (ORDER BY IMDRank) to create new deciles.
 
 To replicate this in dplyr the code would be:
 
