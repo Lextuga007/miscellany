@@ -1,5 +1,13 @@
 ---
-output: github_document
+title: "Indices of Multiple Deprivation"
+author: "Zoë Turner"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_download: yes
+    toc: true
+    toc_depth: 4
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE}
