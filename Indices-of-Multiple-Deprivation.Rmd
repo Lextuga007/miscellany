@@ -17,7 +17,7 @@ library(dplyr)
 library(knitr)
 ```
 
-# Indices of Multiple Deprivation (2015)
+# Indices of Multiple Deprivation (2019)
 
 IMD is very useful for categorising the area a person lives in for deprivation. This information/links and code only cover England and deprivation is scored in relation to all the areas within England using the IMD (2019). This means that they have been ordered by the deprivation score and then ranked (IMDRank).
 
